@@ -1,3 +1,4 @@
+using System;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
@@ -23,7 +24,11 @@ namespace API.Controllers
         [HttpPost("register")]
         public async Task<ActionResult<UserDto>> Register(RegisterDto registerDto)
         {
-            if (await this.UserExists(registerDto.Username)) return BadRequest("Username is taken");
+            if(registerDto==null || 
+                String.IsNullOrEmpty(registerDto.Username) || 
+                String.IsNullOrEmpty(registerDto.Password)) return BadRequest("Empty or invalid content!");
+            else if (this.UserInvalid(registerDto.Username)) return BadRequest("Invalid Username");
+            else if (await this.UserExists(registerDto.Username)) return BadRequest("Username is taken");
 
             using var hmac = new HMACSHA512();
             var user = new AppUser
@@ -33,14 +38,18 @@ namespace API.Controllers
                 PasswordSalt = hmac.Key
             };
 
-            _context.Users.Add(user);
-            await _context.SaveChangesAsync();
-
-            return new UserDto
+            if(user!=null)
             {
-                Username = user.UserName,
-                Token = _tokenService.CreateToken(user)
-            };
+                _context.Users.Add(user);
+                await _context.SaveChangesAsync();
+                return new UserDto
+                {
+                    Username = user.UserName,
+                    Token = _tokenService.CreateToken(user)
+                };
+            }
+
+            return BadRequest("User register failed!");
         }
 
         [HttpPost("login")]
@@ -67,6 +76,7 @@ namespace API.Controllers
             return dto;
         }
 
+        private bool UserInvalid(string username) => String.IsNullOrWhiteSpace(username);
         private async Task<bool> UserExists(string username) => await _context.Users.AnyAsync(u => u.UserName == username.ToLower());
     }
 }
